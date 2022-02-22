@@ -2,3 +2,5 @@ rich
 beautifulsoup4
 pycrypto
 requests
+python-qbittorrent
+python-dotenv
