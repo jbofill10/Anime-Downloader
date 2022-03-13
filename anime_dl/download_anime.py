@@ -10,15 +10,22 @@ load_dotenv()
 
 def main():
 
-	nyaa = NyaaScraper('Kill La Kill', '1080p', batch=True)
+	responses = run_cli()
+	print(responses)
+	nyaa = NyaaScraper(
+		responses['anime_name'],
+		responses['anime_quality'],
+		responses['anime_group'],
+		responses['use_subs'],
+		responses['torrent_type'],
+		responses['min_video'],
+		responses['max_video'],
+		responses['batch'])
 
 	res = nyaa.run_query()
-
 	parsed_payload = parse_payload(res)
 
-	download_torrents(parsed_payload)
-
-	# run_cli()
+	print(parsed_payload)
 
 def download_torrents(torrents):
 	qb = Client('http://127.0.0.1:8080/', verify=False)
@@ -26,7 +33,9 @@ def download_torrents(torrents):
 
 	for torrent in torrents:
 		print(torrent['download_url'])
-		qb.download_from_link(torrent['download_url'], savepath=os.environ['save_path'])
+		anime_dir_name = input('Enter name of directory to save torrent in (keep it consistent with directory name in plex server): ')
+		# TODO: CLI to decide whether torrent is Show, Movie, etc
+		qb.download_from_link(torrent['download_url'], savepath=f"{os.environ['save_path']}/{anime_dir_name}")
 
 
 if __name__ == '__main__':

@@ -1,4 +1,8 @@
 # Byte-compiled / optimized / DLL files
+
+# Temporary until I add multi episode downloads
+download_many.py
+
 __pycache__/**
 *.py[cod]
 *$py.class

@@ -37,13 +37,15 @@ class NyaaScraper:
 	def __build_uri(self) -> None:
 		self.query_uris = list()
 		# TODO: Clean this up
-		if len(self.anime_groups) > 1:
+		if len(self.anime_groups) >= 1:
 			for anime_group in self.anime_groups:
 				self.query_uris.append(f'{self.NYAA_BASE_URL}/user/{anime_group}?f={self.ep_filter}&c={self.subs}&q={self.search}+{self.ep_quality}')
 		else:
 			self.query_uris.append(f'{self.NYAA_BASE_URL}/?f={self.ep_filter}&c={self.subs}&q={self.search}+{self.ep_quality}')
 
-		self.query_uris = [query + '+batch' for query in self.query_uris if self.batch]
+		if self.batch:
+			self.query_uris = [query + '+batch' for query in self.query_uris]
+
 	def run_query(self):
 		query_payload = list()
 		for query in self.query_uris:
