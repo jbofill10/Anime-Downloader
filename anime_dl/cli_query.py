@@ -1,11 +1,10 @@
 #! /bin/python3
 
-from unittest import result
+from qb_client import QbitClient
 from scraper.nyaa import NyaaScraper
 from parser.nyaa_parser import parse_payload
-from pprint import PrettyPrinter
+from pprint import PrettyPrinter, pprint
 from dotenv import load_dotenv
-from qbittorrent import Client
 
 import argparse
 import os
@@ -23,6 +22,7 @@ parser.add_argument('-u', '--uploader', help='Torrent uploader', required=False)
 parser.add_argument('-num', '--number', help='Episode number', required=False)
 parser.add_argument('-t', '--test', help='Test your query without downloading the torrent. Will override errors from episode number', required=False, action='store_true')
 parser.add_argument('-s', '--save_location', help='Save location of torrent ** SHOULD MATCH LAYOUT OF PLEX IF THAT MATTERS **', required=False)
+parser.add_argument('-v', '--verbose', help='Verbose logging for debugging purposes', required=False, action='store_true')
 
 args = parser.parse_args()
 
@@ -39,6 +39,7 @@ def main():
 	save_location = args.save_location
 	torrent_save_path = f"{os.environ['save_path']}/{save_location}"
 	plex_location = os.environ['plex_location']
+	verbose_logging = args.verbose
 
 	if not save_location and not test_query:
 		print('You must enter a save location if not doing a test query!')
@@ -84,46 +85,70 @@ def main():
 				print()
 			sys.exit(9)
 
-	# Ensure saved directory already exists so inotify can properly initialize
-	os.makedirs(torrent_save_path, exist_ok=True)
-
-	# Initialize listener on torrent directory
-	process = subprocess.Popen(['inotifywait', '-m', torrent_save_path], stdout=subprocess.PIPE)
-
+	qb = QbitClient()
 	# Download torrent once inotify has been initialized
-	qb = download_torrent(query_target, torrent_save_path)
+	qb.download_torrent(query_target, torrent_save_path)
 
 	# Wait for torrent to finish
 	while True:
-		stdout = str(process.stdout.readline(), 'utf-8')
+		torrent_info = qb.qb.get_torrent(qb.torrent_hash)
+		if verbose_logging:
+			pp.pprint(torrent_info)
+			# bar_len = 60
+			# filled_len = int(round(bar_len * torrent_info['total_downloaded'] / torrent_info['total_size']))
+			# bar = '=' * filled_len + '-' * (bar_len - filled_len)
+			# sys.stdout.write('[%s] %s\r' % (bar, str(round(torrent_info['total_downloaded']/torrent_info['total_size'], 2)), '%'))
+			# sys.stdout.flush()
+
 		# Torrent is done downloading, leave loop
-		if 'CLOSE_WRITE,CLOSE' in stdout:
+		if torrent_info['total_downloaded'] >= torrent_info['total_size']:
 			time.sleep(2) # Give time to the torrent to fully finish -- possibly not needed
 			break
 
 	# Need to wait on all subproccess statements, otherwise mkvs might suffer some form of corruption
 
 	# Conform to plex naming standards
+	if verbose_logging:
+		print(fr"mv '{torrent_save_path}/{query_target['name']}' '{torrent_save_path}/{anime_name} - s{season}e{ep_num}-.mkv'")
 	subprocess.Popen(fr"mv '{torrent_save_path}/{query_target['name']}' '{torrent_save_path}/{anime_name} - s{season}e{ep_num}-.mkv'", shell=True).wait()
 
 	# Move to plex library
 	# Raw string to preserve spaces
 	# Need to wait for copy to finish before progressing
+	if verbose_logging:
+		print(fr"mv '{torrent_save_path}/{query_target['name']}' '{torrent_save_path}/{anime_name} - s{season}e{ep_num}-.mkv'")
 	subprocess.Popen(fr"cp -r '{top_level_save_dir}' '{plex_location}'", shell=True).wait()
 
+	if verbose_logging:
+		print(fr"rm -rf '{os.path.dirname(torrent_save_path)}'")
 	os.system(fr"rm -rf '{os.path.dirname(torrent_save_path)}'")
 
 	# Need to give access for plex to read
+	if verbose_logging:
+		print(fr"chmod -R 777 '{plex_location}/{anime_name}'")
 	subprocess.Popen(fr"chmod -R 777 '{plex_location}/{anime_name}'", shell=True).wait()
 
-	active_torrents = qb.torrents()
+	all_torrents = qb.get_all_torrents()
 
-	for active_torrent in active_torrents:
-		if query_target['name'] == active_torrent['name']:
-			print('Episode: ' + ep_num + ' MATCH')
-			qb.delete(active_torrent['hash'])
+	# TODO: Move QbitClient class
+	for qb_torrent in all_torrents:
+		if verbose_logging:
+			pp.pprint(qb_torrent)
 
-	with open(f'{plex_location}/{save_location}/.lastest_ep', 'w') as latest_ep_file:
+		if query_target['name'] == qb_torrent['name']:
+			if verbose_logging:
+				print('Deleting torrent')
+			qb.qb.delete(qb_torrent['hash'])
+
+	# TODO: Move QbitClient class
+	if verbose_logging:
+		print('Resuming torrents')
+	qb.resume_other_torrents()
+
+	if verbose_logging:
+		print(f'Writing latest ep file to: {plex_location}/{save_location}/.latest_ep')
+
+	with open(f'{plex_location}/{save_location}/.latest_ep', 'w') as latest_ep_file:
 		latest_ep_file.write(ep_num)
 
 	sys.exit(0)
@@ -132,17 +157,5 @@ def main():
 def invalid_torrent_name(text: str) -> bool:
 	return '[' in text or ']' in text or '(' in text or ')' in text
 
-# TODO: Move out of cli_query and download_anime into a separate file to deduplicate code usage
-# a class is a good idea since several operations on the same torrent need to occur anyways
-def download_torrent(torrent, save_dir) -> Client:
-	qb = Client('http://127.0.0.1:8080/', verify=False)
-	qb.login(os.environ['qbitt_user'], os.environ['qbitt_pass'])
-
-	qb.download_from_link(
-		torrent['download_url'],
-		savepath=save_dir
-	)
-
-	return qb
 if __name__ == '__main__':
 	main()

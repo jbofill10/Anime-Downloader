@@ -24,8 +24,12 @@ def parse_payload(payload):
 			torrent_info = torrent.findAll('td', {'class': 'text-center'})
 
 			links = torrent.findAll('a')
+			# sigh
+			try:
+				parsed_query['name'] = links[2]['title']
+			except KeyError:
+				parsed_query['name'] = links[1]['title']
 
-			parsed_query['name'] = links[2]['title']
 			parsed_query['download_url'] = NYAA_BASE_URL + links[3]['href']
 			parsed_query['torrent_size'] = torrent_info[1].text
 			parsed_query['release_date'] = torrent_info[2].text
