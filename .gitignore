@@ -2,6 +2,7 @@
 
 # Temporary until I add multi episode downloads
 download_many.py
+query_tester.py
 
 __pycache__/**
 *.py[cod]

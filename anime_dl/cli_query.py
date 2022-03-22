@@ -89,21 +89,22 @@ def main():
 	# Download torrent once inotify has been initialized
 	qb.download_torrent(query_target, torrent_save_path)
 
+	# Need to make sure torrent gets rechecked to download potentially missing pieces
+	run_recheck = False
 	# Wait for torrent to finish
 	while True:
-		torrent_info = qb.qb.get_torrent(qb.torrent_hash)
+		torrent_info = qb.get_torrent_info()
 		if verbose_logging:
 			pp.pprint(torrent_info)
-			# bar_len = 60
-			# filled_len = int(round(bar_len * torrent_info['total_downloaded'] / torrent_info['total_size']))
-			# bar = '=' * filled_len + '-' * (bar_len - filled_len)
-			# sys.stdout.write('[%s] %s\r' % (bar, str(round(torrent_info['total_downloaded']/torrent_info['total_size'], 2)), '%'))
-			# sys.stdout.flush()
 
-		# Torrent is done downloading, leave loop
-		if torrent_info['total_downloaded'] >= torrent_info['total_size']:
-			time.sleep(2) # Give time to the torrent to fully finish -- possibly not needed
-			break
+		# Torrent is done downloading, either recheck or exit loop
+		if torrent_info['progress'] == 1:
+			if not run_recheck:
+				run_recheck = True
+				qb.qb.recheck(qb.torrent_hash)
+			else:
+				time.sleep(2) # Give time to the torrent to fully finish -- possibly not needed
+				break
 
 	# Need to wait on all subproccess statements, otherwise mkvs might suffer some form of corruption
 

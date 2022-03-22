@@ -1,7 +1,6 @@
 from qbittorrent import Client
 
 import os
-import time
 
 # TODO: Port inotify to this class so then the pause and resume functions can be private
 class QbitClient():
@@ -46,6 +45,13 @@ class QbitClient():
 
 	def get_all_torrents(self) -> list[dict]:
 		return self.qb.torrents()
+
+	def get_torrent_info(self) -> dict:
+		torrents_list = self.qb.torrents()
+
+		for torrent in torrents_list:
+			if self.torrent_hash == torrent['hash']:
+				return torrent
 
 
 
